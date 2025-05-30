@@ -1,7 +1,7 @@
 # DocScanner
 
 <p align="center">
-  <img src="static/logo.png" alt="DocScanner Logo" style="max-height:120px;">
+  <img src="static/logo.png" alt="DocScanner Logo" style="max-height:40px;">
 </p>
 
 Aplicación web simple y eficiente para escanear documentos usando tu PC o la cámara de tu celular (vía IP Webcam), con funciones de enderezado, filtros, recorte y descarga en imagen o PDF.
