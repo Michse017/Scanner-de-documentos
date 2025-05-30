@@ -10,7 +10,6 @@ Aplicación web simple y eficiente para escanear documentos usando tu PC o la c�
 
 ## Características
 
-- **Logo personalizado:** Visualización del logo en la interfaz.
 - **Carga desde PC** o **toma la foto con tu celular** (usando apps tipo IP Webcam).
 - **Detección automática de bordes** del documento con previsualización y marco amarillo (solo en la vista previa).
 - **Aplanar** (corregir perspectiva) y recortar el documento.
