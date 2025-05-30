@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>DocScanner Mejorado</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="text-center mb-3">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo DocScanner" style="max-height:100px;">
+    </div>
+    <h1 class="mb-3 text-center">DocScanner</h1>
+    <form id="uploadForm" class="card p-3 shadow-sm">
+        <div class="mb-3">
+            <label for="file" class="form-label">Subir foto (PC)</label>
+            <input type="file" class="form-control" name="file" id="file" accept="image/*">
+        </div>
+        <div class="mb-3">
+            <label for="webcamUrl" class="form-label">O pegar URL de IP Webcam (ej: http://IP:8080/shot.jpg):</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="webcamUrl" placeholder="http://192.168.1.3:8080/shot.jpg">
+                <button type="button" class="btn btn-secondary" id="btnWebcam">Tomar foto</button>
+            </div>
+        </div>
+        <div id="previewArea" class="mb-3" style="display:none;">
+            <label class="form-label">Vista previa con detección de bordes:</label><br>
+            <img id="previewImg" class="img-fluid border" style="max-height:350px;">
+            <div class="mt-2">
+                <button type="button" id="btnClean" class="btn btn-danger">Limpiar</button>
+            </div>
+        </div>
+        <button type="button" id="btnRectify" class="btn btn-warning mb-2" style="display:none;">Aplanar</button>
+        <div id="rectifiedArea" class="mb-3" style="display:none;">
+            <label class="form-label">Vista previa rectificada:</label><br>
+            <img id="rectifiedImg" class="img-fluid border" style="max-height:350px;">
+        </div>
+        <div id="filtersArea" style="display:none;">
+            <div class="mb-3">
+                <label class="form-label">Filtro:</label>
+                <select class="form-select" id="filterSel">
+                    <option value="color">Color</option>
+                    <option value="gray">Escala de grises</option>
+                    <option value="bw">Blanco y negro (impresora)</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Brillo</label>
+                <input type="range" class="form-range" id="brightness" min="-100" max="100" step="1" value="0">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Contraste</label>
+                <input type="range" class="form-range" id="contrast" min="0.5" max="2.0" step="0.05" value="1">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Suavizado</label>
+                <input type="range" class="form-range" id="smooth" min="0" max="15" step="2" value="0">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Rotar</label>
+                <select class="form-select" id="rotate">
+                    <option value="0">0°</option>
+                    <option value="90">90°</option>
+                    <option value="180">180°</option>
+                    <option value="270">270°</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Formato de salida:</label>
+                <select class="form-select" id="outputSel">
+                    <option value="image">Imagen</option>
+                    <option value="pdf">PDF</option>
+                </select>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnDownload">Procesar y Descargar</button>
+        </div>
+    </form>
+    <div id="msgArea" class="alert alert-danger mt-3" style="display:none;"></div>
+    <p class="mt-4 text-muted">Puedes cargar foto desde tu PC o tomarla con IP Webcam desde cualquier celular en la red.</p>
+</div>
+<script>
+let docCnt = null;
+let origImg = null;
+let rectifiedImg = null;
+let processedImg = null;
+
+function showMsg(msg) {
+    const msgArea = document.getElementById('msgArea');
+    msgArea.innerText = msg;
+    msgArea.style.display = 'block';
+}
+function hideMsg() {
+    document.getElementById('msgArea').style.display = 'none';
+}
+
+// Limpiar todo lo relacionado con la vista previa y los resultados
+function cleanPreview() {
+    document.getElementById('previewImg').src = '';
+    document.getElementById('rectifiedImg').src = '';
+    document.getElementById('previewArea').style.display = 'none';
+    document.getElementById('btnRectify').style.display = 'none';
+    document.getElementById('rectifiedArea').style.display = 'none';
+    document.getElementById('filtersArea').style.display = 'none';
+    document.getElementById('file').value = '';
+    document.getElementById('webcamUrl').value = '';
+    hideMsg();
+    docCnt = null;
+    origImg = null;
+    rectifiedImg = null;
+    processedImg = null;
+}
+
+document.getElementById('btnClean').addEventListener('click', cleanPreview);
+
+document.getElementById('file').addEventListener('change', function(e){
+    hideMsg();
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    axios.post('/upload', formData).then(res=>{
+        if(res.data.preview){
+            origImg = res.data.preview;
+            docCnt = res.data.doc_cnt;
+            document.getElementById('previewImg').src = 'data:image/jpeg;base64,'+origImg;
+            document.getElementById('previewArea').style.display = 'block';
+            document.getElementById('btnRectify').style.display = (docCnt.length===4) ? 'inline-block' : 'none';
+        }
+    }).catch(err=>{
+        showMsg('No se pudo procesar la imagen.');
+    });
+});
+
+document.getElementById('btnWebcam').addEventListener('click', function(){
+    hideMsg();
+    const url = document.getElementById('webcamUrl').value.trim();
+    if(!url) {
+        showMsg('Por favor ingresa la URL de la webcam.');
+        return;
+    }
+    axios.post('/webcam', {url: url}).then(res=>{
+        if(res.data.preview){
+            origImg = res.data.preview;
+            docCnt = res.data.doc_cnt;
+            document.getElementById('previewImg').src = 'data:image/jpeg;base64,'+origImg;
+            document.getElementById('previewArea').style.display = 'block';
+            document.getElementById('btnRectify').style.display = (docCnt.length===4) ? 'inline-block' : 'none';
+        }
+    }).catch(err=>{
+        showMsg('No se pudo obtener la imagen de la webcam.');
+    });
+});
+
+document.getElementById('btnRectify').addEventListener('click', function(){
+    hideMsg();
+    if(!docCnt || docCnt.length!==4 || !origImg) {
+        showMsg('No se detectó documento para aplanar.');
+        return;
+    }
+    axios.post('/rectify', {
+        image: origImg,
+        doc_cnt: docCnt
+    }).then(res=>{
+        rectifiedImg = res.data.rectified;
+        document.getElementById('rectifiedImg').src = 'data:image/jpeg;base64,'+rectifiedImg;
+        document.getElementById('rectifiedArea').style.display = 'block';
+        document.getElementById('filtersArea').style.display = 'block';
+        processedImg = rectifiedImg;
+        applyFilters();
+    }).catch(err=>{
+        showMsg('No se pudo aplanar el documento.');
+    });
+});
+
+['filterSel','brightness','contrast','smooth','rotate'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', applyFilters);
+});
+
+function applyFilters(){
+    if(!rectifiedImg) return;
+    axios.post('/filter', {
+        image: rectifiedImg,
+        filter: document.getElementById('filterSel').value,
+        brightness: document.getElementById('brightness').value,
+        contrast: document.getElementById('contrast').value,
+        smooth: document.getElementById('smooth').value,
+        rotate: document.getElementById('rotate').value
+    }).then(res=>{
+        processedImg = res.data.processed;
+        document.getElementById('rectifiedImg').src = 'data:image/jpeg;base64,'+processedImg;
+    });
+}
+
+document.getElementById('btnDownload').addEventListener('click', function(){
+    if(!processedImg) return;
+    axios.post('/save', {
+        image: processedImg,
+        output: document.getElementById('outputSel').value
+    }, {responseType:'blob'}).then(res=>{
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (document.getElementById('outputSel').value==='pdf') ? 'documento.pdf' : 'documento.jpg';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    });
+});
+</script>
+</body>
+</html>

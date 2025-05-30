@@ -1,0 +1,14 @@
+body {
+    background: #f4f8fb;
+}
+h1 {
+    text-align: center;
+}
+.card {
+    max-width: 500px;
+    margin: 0 auto;
+}
+img {
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
