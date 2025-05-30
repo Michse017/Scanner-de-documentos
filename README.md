@@ -4,69 +4,71 @@
   <img src="static/logo.png" alt="DocScanner Logo" style="max-height:40px;">
 </p>
 
-Aplicación web simple y eficiente para escanear documentos usando tu PC o la cámara de tu celular (vía IP Webcam), con funciones de enderezado, filtros, recorte y descarga en imagen o PDF.
+DocScanner is a simple and efficient web application for scanning documents using your PC or your phone's camera (via IP Webcam). It offers perspective correction, filtering, cropping, and allows downloading your documents as images or PDFs.
 
 ---
 
-## Características
+## Features
 
-- **Carga desde PC** o **toma la foto con tu celular** (usando apps tipo IP Webcam).
-- **Detección automática de bordes** del documento con previsualización y marco amarillo (solo en la vista previa).
-- **Aplanar** (corregir perspectiva) y recortar el documento.
-- **Filtros:** Color, escala de grises, blanco y negro.
-- **Ajustes:** Brillo, contraste, suavizado, rotación.
-- **Descarga:** Imagen (JPG) o PDF del documento enderezado y filtrado.
-- **Botón Limpiar:** Permite reiniciar el flujo para escanear otro documento fácilmente.
-- **Interfaz moderna y responsiva** con Bootstrap.
+- **Upload from PC** or **capture with your phone** (using IP Webcam apps).
+- **Automatic document edge detection** with a yellow outline in the preview (outline visible only in preview).
+- **Flatten** (perspective correction) and crop the document.
+- **Filters:** Color, grayscale, black and white.
+- **Adjustments:** Brightness, contrast, smoothing, rotation.
+- **Download:** Save your processed document as a JPG image or PDF.
+- **Clean Button:** Easily reset the workflow to scan a new document.
+- **Modern and responsive interface** using Bootstrap.
 
 ---
 
-## Instalación
+## Installation
 
-1. **Clona o descarga este repositorio.**
-2. Instala las dependencias en tu entorno:
+1. **Clone or download this repository.**
+2. Install the required dependencies:
    ```
    pip install -r requirements.txt
    ```
-3. Ejecuta la app:
+3. Run the application:
    ```
    python app.py
    ```
-4. Abre tu navegador en [http://localhost:5000](http://localhost:5000)
+4. Open your browser and navigate to [http://localhost:5000](http://localhost:5000)
 
 ---
 
-## Uso
+## Usage
 
-### Escanear desde PC
+### Scan from PC
 
-1. Haz clic en "Subir foto (PC)" y selecciona una imagen de tu documento.
-2. Se mostrará una vista previa con el marco amarillo de detección.
-3. Pulsa "Aplanar" si deseas corregir la perspectiva.
-4. Aplica los filtros y ajustes que desees.
-5. Elige el formato de salida y haz clic en "Procesar y Descargar".
+1. Click "Upload photo (PC)" and select an image of your document.
+2. A preview will appear with a yellow detection outline.
+3. Click "Flatten" to correct the perspective if desired.
+4. Apply any filters and adjustments as needed.
+5. Choose the output format and click "Process and Download".
 
-### Escanear con tu celular usando IP Webcam
+### Scan with your phone using IP Webcam
 
-1. Instala la app [IP Webcam](https://play.google.com/store/apps/details?id=com.pas.webcam) en tu celular.
-2. Abre la app y pulsa "Iniciar servidor".
-3. Desde el navegador de tu PC, pega la URL de snapshot (ejemplo: `http://192.168.1.3:8080/shot.jpg`) en el campo correspondiente y haz clic en "Tomar foto".
-4. Procede igual que en el caso anterior.
+1. Install the [IP Webcam](https://play.google.com/store/apps/details?id=com.pas.webcam) app on your phone.
+2. Open the app and start the server.
+3. From your PC browser, paste the snapshot URL (e.g., `http://192.168.1.3:8080/shot.jpg`) into the appropriate field and click "Take photo".
+4. Continue as with the PC upload workflow.
 
-### Limpiar para escanear otro documento
+### Clean to scan another document
 
-- Haz clic en el botón **Limpiar** para reiniciar el flujo y cargar una nueva imagen o URL.
-
----
-
-## Estructura de archivos
-
-- `app.py` – Lógica principal (Flask + OpenCV)
-- `templates/index.html` – Interfaz principal del usuario
-- `static/styles.css` – Estilos personalizados
-- `static/logo.png` – **Coloca aquí el logo** (usa el proporcionado)
-- `uploads/`, `rectified/`, `filtered/` – Carpetas para imágenes temporales
+- Click the **Clean** button to reset the workflow and upload a new image or URL.
 
 ---
 
-¿Comentarios o sugerencias? ¡Bienvenido tu feedback!
+## File Structure
+
+- `app.py` – Main application logic (Flask + OpenCV)
+- `templates/index.html` – Main user interface
+- `static/styles.css` – Custom styles
+- `static/logo.png` – **Place the provided logo here**
+- `uploads/`, `rectified/`, `filtered/` – Folders for temporary images
+
+---
+
+## Feedback
+
+Comments or suggestions? Your feedback is welcome!

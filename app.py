@@ -1,13 +1,31 @@
+"""
+DocScanner main Flask backend.
+
+This app provides endpoints for uploading, rectifying (deskewing), filtering,
+and downloading scanned documents, supporting both image upload and webcam snapshot.
+All image processing is handled with OpenCV and NumPy. File session management avoids
+large cookies by storing only filenames.
+"""
+
 import os
 import cv2
 import numpy as np
 import requests
-from flask import Flask, render_template, request, send_file, jsonify, session
+from flask import (
+    Flask,
+    render_template,
+    request,
+    send_file,
+    jsonify,
+    session
+)
 from werkzeug.utils import secure_filename
 from fpdf import FPDF
 from io import BytesIO
 import tempfile
 import uuid
+
+# --- Configuration and Initialization ---
 
 UPLOAD_FOLDER = 'uploads'
 RECTIFIED_FOLDER = 'rectified'
@@ -20,65 +38,87 @@ app.config['RECTIFIED_FOLDER'] = RECTIFIED_FOLDER
 app.config['FILTERED_FOLDER'] = FILTERED_FOLDER
 app.secret_key = 'supersecretkey'
 
+# Create necessary directories
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RECTIFIED_FOLDER, exist_ok=True)
 os.makedirs(FILTERED_FOLDER, exist_ok=True)
 
+
+# --- Utility Functions ---
+
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    """Check if the file extension is allowed."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def np_to_base64(img, ext='.jpg'):
+    """Convert NumPy image to a BytesIO buffer (for sending as file)."""
     _, buf = cv2.imencode(ext, img)
     return BytesIO(buf)
 
+
 def np_to_base64str(img, ext='.jpg'):
+    """Convert NumPy image to base64 string (for web preview)."""
     _, buf = cv2.imencode(ext, img)
     from base64 import b64encode
     return b64encode(buf.tobytes()).decode('utf-8')
 
+
 def base64_to_np(base64str):
+    """Convert base64 string to NumPy image."""
     from base64 import b64decode
     img_bytes = b64decode(base64str)
     arr = np.frombuffer(img_bytes, dtype=np.uint8)
     return cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
 
+
 def order_points(pts):
+    """
+    Order points in consistent order: top-left, top-right, bottom-right, bottom-left.
+    Used for perspective transform.
+    """
     rect = np.zeros((4, 2), dtype="float32")
     s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
+    rect[0] = pts[np.argmin(s)]  # Top-left
+    rect[2] = pts[np.argmax(s)]  # Bottom-right
     diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
+    rect[1] = pts[np.argmin(diff)]  # Top-right
+    rect[3] = pts[np.argmax(diff)]  # Bottom-left
     return rect
 
+
 def four_point_transform(image, pts):
+    """Apply perspective transform using four detected corner points."""
     rect = order_points(pts)
     (tl, tr, br, bl) = rect
-    widthA = np.linalg.norm(br - bl)
-    widthB = np.linalg.norm(tr - tl)
-    maxWidth = int(max(widthA, widthB))
-    heightA = np.linalg.norm(tr - br)
-    heightB = np.linalg.norm(tl - bl)
-    maxHeight = int(max(heightA, heightB))
+    width_a = np.linalg.norm(br - bl)
+    width_b = np.linalg.norm(tr - tl)
+    max_width = int(max(width_a, width_b))
+    height_a = np.linalg.norm(tr - br)
+    height_b = np.linalg.norm(tl - bl)
+    max_height = int(max(height_a, height_b))
     dst = np.array([
         [0, 0],
-        [maxWidth - 1, 0],
-        [maxWidth - 1, maxHeight - 1],
-        [0, maxHeight - 1]
+        [max_width - 1, 0],
+        [max_width - 1, max_height - 1],
+        [0, max_height - 1]
     ], dtype="float32")
     M = cv2.getPerspectiveTransform(rect, dst)
-    warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+    warped = cv2.warpPerspective(image, M, (max_width, max_height))
     return warped
 
+
 def detect_document(image):
+    """
+    Detect the largest 4-point contour in the image (the document).
+    Return both the preview image (with yellow outline) and the corner points.
+    """
     ratio = image.shape[0] / 500.0
     image_resized = cv2.resize(image, (int(image.shape[1] / ratio), 500))
     gray = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5,5), 0)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edged = cv2.Canny(blurred, 50, 150)
-    kernel = np.ones((5,5),np.uint8)
+    kernel = np.ones((5, 5), np.uint8)
     dilate = cv2.dilate(edged, kernel, iterations=1)
     closing = cv2.morphologyEx(dilate, cv2.MORPH_CLOSE, kernel)
     contours, _ = cv2.findContours(closing.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -88,16 +128,18 @@ def detect_document(image):
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
         if len(approx) == 4:
-            doc_cnt = approx.reshape(4,2) * ratio
+            doc_cnt = approx.reshape(4, 2) * ratio
             break
-    # Solo la preview lleva el marco
+    # Overlay yellow outline for preview only
     preview = image.copy()
     if doc_cnt is not None:
         doc_cnt_int = np.int32(doc_cnt)
-        cv2.polylines(preview, [doc_cnt_int], True, (0,255,255), 3)
+        cv2.polylines(preview, [doc_cnt_int], True, (0, 255, 255), 3)
     return preview, doc_cnt
 
+
 def apply_filter(img, filter_type):
+    """Apply color, grayscale, or black-and-white filter."""
     if filter_type == "gray":
         return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     elif filter_type == "bw":
@@ -109,7 +151,12 @@ def apply_filter(img, filter_type):
     else:
         return img
 
+
 def adjust_brightness_contrast_smooth(img, brightness=0, contrast=1.0, smooth=0):
+    """
+    Adjust brightness, contrast, and optionally apply Gaussian blur for smoothing.
+    Handles both grayscale and color images.
+    """
     if len(img.shape) == 2:
         img = img.astype(np.float32)
         img = img * contrast + brightness
@@ -127,7 +174,9 @@ def adjust_brightness_contrast_smooth(img, brightness=0, contrast=1.0, smooth=0)
             img = cv2.GaussianBlur(img, (smooth, smooth), 0)
         return img
 
+
 def rotate_image(img, angle):
+    """Rotate image by 0, 90, 180, or 270 degrees."""
     angle = int(angle)
     if angle == 0:
         return img
@@ -138,49 +187,65 @@ def rotate_image(img, angle):
     }
     if angle in rot_code:
         return cv2.rotate(img, rot_code[angle])
+    # Arbitrary angle (not used in UI)
     (h, w) = img.shape[:2]
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
     return cv2.warpAffine(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
+
 def save_image(img, folder):
-    # Save as jpg with unique name, return filename
+    """Save image as .jpg with a unique filename in the given folder. Return the filename."""
     filename = f"{uuid.uuid4().hex}.jpg"
     path = os.path.join(folder, filename)
     cv2.imwrite(path, img)
     return filename
 
+
 def load_image_from(folder, filename):
+    """Load image from the specified folder and filename."""
     path = os.path.join(folder, filename)
     img = cv2.imread(path)
     return img
 
+
+# --- Flask Endpoints ---
+
 @app.route('/', methods=['GET'])
 def index():
+    """Serve the main web page."""
     return render_template('index.html')
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    """
+    Upload a document image from PC and detect document outline.
+    Store original filename in the session.
+    """
     file = request.files.get('file')
     if file and allowed_file(file.filename):
         filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         img = cv2.imread(file_path)
-        # Guarda el nombre de la imagen original sin marco para siguientes pasos
         session['orig_img_filename'] = filename
         preview, doc_cnt = detect_document(img)
-        # La preview lleva el marco amarillo
         preview_b64 = np_to_base64str(preview)
         doc_cnt_list = doc_cnt.tolist() if doc_cnt is not None else []
         return jsonify({
             'preview': preview_b64,
             'doc_cnt': doc_cnt_list
         })
-    return jsonify({'error': 'Archivo no permitido'}), 400
+    return jsonify({'error': 'Invalid file type'}), 400
+
 
 @app.route('/webcam', methods=['POST'])
 def webcam():
+    """
+    Capture an image from an IP Webcam URL.
+    Store original filename in the session.
+    """
     data = request.json
     url = data['url']
     try:
@@ -188,7 +253,7 @@ def webcam():
         img_arr = np.asarray(bytearray(resp.content), dtype=np.uint8)
         img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
         if img is None:
-            return jsonify({'error': 'No se pudo decodificar la imagen.'}), 400
+            return jsonify({'error': 'Could not decode image.'}), 400
         filename = f"{uuid.uuid4().hex}_webcam.jpg"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         cv2.imwrite(file_path, img)
@@ -201,14 +266,19 @@ def webcam():
             'doc_cnt': doc_cnt_list
         })
     except Exception as e:
-        return jsonify({'error': f'No se pudo obtener la imagen de la webcam: {e}'}), 400
+        return jsonify({'error': f'Could not get image from webcam: {e}'}), 400
+
 
 @app.route('/rectify', methods=['POST'])
 def rectify():
+    """
+    Perform perspective transformation (deskew/aplanar).
+    Save the rectified image for use in further steps.
+    """
     data = request.json
     orig_img_filename = session.get('orig_img_filename')
     if not orig_img_filename:
-        return jsonify({'error': 'No hay imagen original cargada.'}), 400
+        return jsonify({'error': 'No original image loaded.'}), 400
     doc_cnt = np.array(data['doc_cnt'], dtype=np.float32)
     img = load_image_from(app.config['UPLOAD_FOLDER'], orig_img_filename)
     rectified = four_point_transform(img, doc_cnt)
@@ -217,17 +287,21 @@ def rectify():
     rectified_b64 = np_to_base64str(rectified)
     return jsonify({'rectified': rectified_b64})
 
+
 @app.route('/filter', methods=['POST'])
 def filter_api():
+    """
+    Apply filter, brightness, contrast, smoothing, and rotation to the document.
+    Store the processed image for download.
+    """
     data = request.json
-    # Usa la imagen rectificada si existe, si no la original
     rectified_img_filename = session.get('rectified_img_filename')
     if rectified_img_filename:
         img = load_image_from(app.config['RECTIFIED_FOLDER'], rectified_img_filename)
     else:
         orig_img_filename = session.get('orig_img_filename')
         if not orig_img_filename:
-            return jsonify({'error': 'No hay imagen para filtrar.'}), 400
+            return jsonify({'error': 'No image to filter.'}), 400
         img = load_image_from(app.config['UPLOAD_FOLDER'], orig_img_filename)
     filter_type = data.get('filter', 'color')
     brightness = int(data.get('brightness', 0))
@@ -242,10 +316,14 @@ def filter_api():
     processed_b64 = np_to_base64str(processed)
     return jsonify({'processed': processed_b64})
 
+
 @app.route('/save', methods=['POST'])
 def save():
+    """
+    Download the current processed image as JPG or PDF.
+    Uses the filtered, rectified, or original image (in that order of preference).
+    """
     data = request.json
-    # Usa la imagen filtrada si existe, si no la rectificada, si no la original
     fname = session.get('filtered_img_filename')
     folder = app.config['FILTERED_FOLDER']
     if not fname:
@@ -255,21 +333,21 @@ def save():
         fname = session.get('orig_img_filename')
         folder = app.config['UPLOAD_FOLDER']
     if not fname:
-        return "No hay imagen para descargar", 400
+        return "No image to download", 400
 
     img = load_image_from(folder, fname)
     output_format = data.get('output', 'image')
     if output_format == 'image':
         is_success, buffer = cv2.imencode(".jpg", img)
         if not is_success:
-            return "Error al codificar la imagen", 500
+            return "Error encoding image", 500
         byte_io = BytesIO(buffer)
         byte_io.seek(0)
         return send_file(byte_io, mimetype="image/jpeg", as_attachment=True, download_name="documento.jpg")
     else:
         is_success, buffer = cv2.imencode(".jpg", img)
         if not is_success:
-            return "Error al codificar la imagen para PDF", 500
+            return "Error encoding image for PDF", 500
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
             tmp.write(buffer)
             tmp.flush()
@@ -281,6 +359,7 @@ def save():
             pdf_io.seek(0)
         os.unlink(tmp.name)
         return send_file(pdf_io, mimetype="application/pdf", as_attachment=True, download_name="documento.pdf")
+
 
 if __name__ == '__main__':
     app.run(debug=True)
