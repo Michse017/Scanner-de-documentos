@@ -2,85 +2,138 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>DocScanner Mejorado</title>
+    <title>DocScanner - Escanea documentos fácilmente</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 <body>
-<div class="container mt-5">
-    <div class="text-center mb-3">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo DocScanner" style="max-height:100px;">
-    </div>
-    <h1 class="mb-3 text-center">DocScanner</h1>
-    <form id="uploadForm" class="card p-3 shadow-sm">
-        <div class="mb-3">
-            <label for="file" class="form-label">Subir foto (PC)</label>
-            <input type="file" class="form-control" name="file" id="file" accept="image/*">
-        </div>
-        <div class="mb-3">
-            <label for="webcamUrl" class="form-label">O pegar URL de IP Webcam (ej: http://IP:8080/shot.jpg):</label>
-            <div class="input-group">
-                <input type="text" class="form-control" id="webcamUrl" placeholder="http://192.168.1.3:8080/shot.jpg">
-                <button type="button" class="btn btn-secondary" id="btnWebcam">Tomar foto</button>
+<div class="container mt-4">
+    <header class="app-header">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo DocScanner" class="app-logo">
+        <h1 class="app-title">DocScanner</h1>
+    </header>
+    
+    <main>
+        <div class="scanner-card card">
+            <h2 class="section-title">Capturar documento</h2>
+            <div class="input-area">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="file" class="form-label">
+                            <i class="bi bi-upload me-2"></i>Subir desde PC
+                        </label>
+                        <input type="file" class="form-control" name="file" id="file" accept="image/*">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="webcamUrl" class="form-label">
+                            <i class="bi bi-camera me-2"></i>Capturar con IP Webcam
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="webcamUrl" placeholder="http://192.168.1.3:8080/shot.jpg">
+                            <button type="button" class="btn btn-secondary" id="btnWebcam">
+                                <i class="bi bi-camera-fill me-1"></i>Capturar
+                            </button>
+                        </div>
+                        <small class="text-muted">Ejemplo: http://192.168.1.3:8080/shot.jpg</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="previewArea" class="preview-container" style="display:none;">
+                <h3 class="section-title">Vista previa con detección de bordes</h3>
+                <img id="previewImg" class="preview-img img-fluid" alt="Vista previa del documento">
+                <div class="mt-3">
+                    <button type="button" id="btnRectify" class="btn btn-warning action-btn" style="display:none;">
+                        <i class="bi bi-aspect-ratio me-1"></i>Aplanar documento
+                    </button>
+                    <button type="button" id="btnClean" class="btn btn-danger action-btn">
+                        <i class="bi bi-trash me-1"></i>Limpiar
+                    </button>
+                </div>
+            </div>
+            
+            <div id="rectifiedArea" class="preview-container" style="display:none;">
+                <h3 class="section-title">Documento procesado</h3>
+                <img id="rectifiedImg" class="result-img img-fluid" alt="Documento rectificado">
+            </div>
+            
+            <div id="filtersArea" class="controls-area" style="display:none;">
+                <h3 class="section-title">Ajustes y filtros</h3>
+                <div class="filter-controls">
+                    <div class="mb-3">
+                        <label class="form-label" for="filterSel">
+                            <i class="bi bi-palette me-1"></i>Filtro
+                        </label>
+                        <select class="form-select" id="filterSel">
+                            <option value="color">Color</option>
+                            <option value="gray">Escala de grises</option>
+                            <option value="bw">Blanco y negro (impresora)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="brightness">
+                            <i class="bi bi-brightness-high me-1"></i>Brillo
+                        </label>
+                        <input type="range" class="form-range" id="brightness" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contrast">
+                            <i class="bi bi-circle-half me-1"></i>Contraste
+                        </label>
+                        <input type="range" class="form-range" id="contrast" min="0.5" max="2.0" step="0.05" value="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="smooth">
+                            <i class="bi bi-water me-1"></i>Suavizado
+                        </label>
+                        <input type="range" class="form-range" id="smooth" min="0" max="15" step="2" value="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="rotate">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Rotar
+                        </label>
+                        <select class="form-select" id="rotate">
+                            <option value="0">0°</option>
+                            <option value="90">90°</option>
+                            <option value="180">180°</option>
+                            <option value="270">270°</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="output-controls">
+                    <div class="mb-3">
+                        <label class="form-label" for="outputSel">
+                            <i class="bi bi-file-earmark me-1"></i>Formato de salida
+                        </label>
+                        <select class="form-select" id="outputSel">
+                            <option value="image">Imagen (JPG)</option>
+                            <option value="pdf">Documento (PDF)</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="btnDownload">
+                        <i class="bi bi-download me-1"></i>Procesar y Descargar
+                    </button>
+                </div>
             </div>
         </div>
-        <div id="previewArea" class="mb-3" style="display:none;">
-            <label class="form-label">Vista previa con detección de bordes:</label><br>
-            <img id="previewImg" class="img-fluid border" style="max-height:350px;">
-            <div class="mt-2">
-                <button type="button" id="btnClean" class="btn btn-danger">Limpiar</button>
-            </div>
-        </div>
-        <button type="button" id="btnRectify" class="btn btn-warning mb-2" style="display:none;">Aplanar</button>
-        <div id="rectifiedArea" class="mb-3" style="display:none;">
-            <label class="form-label">Vista previa rectificada:</label><br>
-            <img id="rectifiedImg" class="img-fluid border" style="max-height:350px;">
-        </div>
-        <div id="filtersArea" style="display:none;">
-            <div class="mb-3">
-                <label class="form-label">Filtro:</label>
-                <select class="form-select" id="filterSel">
-                    <option value="color">Color</option>
-                    <option value="gray">Escala de grises</option>
-                    <option value="bw">Blanco y negro (impresora)</option>
-                </select>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Brillo</label>
-                <input type="range" class="form-range" id="brightness" min="-100" max="100" step="1" value="0">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Contraste</label>
-                <input type="range" class="form-range" id="contrast" min="0.5" max="2.0" step="0.05" value="1">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Suavizado</label>
-                <input type="range" class="form-range" id="smooth" min="0" max="15" step="2" value="0">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Rotar</label>
-                <select class="form-select" id="rotate">
-                    <option value="0">0°</option>
-                    <option value="90">90°</option>
-                    <option value="180">180°</option>
-                    <option value="270">270°</option>
-                </select>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Formato de salida:</label>
-                <select class="form-select" id="outputSel">
-                    <option value="image">Imagen</option>
-                    <option value="pdf">PDF</option>
-                </select>
-            </div>
-            <button type="button" class="btn btn-primary" id="btnDownload">Procesar y Descargar</button>
-        </div>
-    </form>
-    <div id="msgArea" class="alert alert-danger mt-3" style="display:none;"></div>
-    <p class="mt-4 text-muted">Puedes cargar foto desde tu PC o tomarla con IP Webcam desde cualquier celular en la red.</p>
+        
+        <div id="msgArea" class="alert alert-danger" style="display:none;"></div>
+    </main>
+    
+    <footer>
+        <p class="footer-text">
+            <i class="bi bi-info-circle me-1"></i>
+            DocScanner te permite escanear documentos desde tu PC o usando la cámara de tu celular a través de apps como IP Webcam.
+            <br>
+            <small>Desarrollado con tecnologías modernas para una experiencia de escaneo eficiente.</small>
+        </p>
+    </footer>
 </div>
+
 <script>
 let docCnt = null;
 let origImg = null;
@@ -91,7 +144,13 @@ function showMsg(msg) {
     const msgArea = document.getElementById('msgArea');
     msgArea.innerText = msg;
     msgArea.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        hideMsg();
+    }, 5000);
 }
+
 function hideMsg() {
     document.getElementById('msgArea').style.display = 'none';
 }
@@ -119,6 +178,11 @@ document.getElementById('file').addEventListener('change', function(e){
     hideMsg();
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Mostrar indicador de carga
+    document.getElementById('previewArea').style.display = 'block';
+    document.getElementById('previewImg').src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2NjY2NjYiPkNhcmdhbmRvLi4uPC90ZXh0Pjwvc3ZnPg==';
+    
     const formData = new FormData();
     formData.append('file', file);
     axios.post('/upload', formData).then(res=>{
@@ -128,9 +192,14 @@ document.getElementById('file').addEventListener('change', function(e){
             document.getElementById('previewImg').src = 'data:image/jpeg;base64,'+origImg;
             document.getElementById('previewArea').style.display = 'block';
             document.getElementById('btnRectify').style.display = (docCnt.length===4) ? 'inline-block' : 'none';
+            
+            if(docCnt.length !== 4) {
+                showMsg('No se detectaron los bordes del documento. Puedes intentar con otra imagen o ajustar la iluminación.');
+            }
         }
     }).catch(err=>{
         showMsg('No se pudo procesar la imagen.');
+        document.getElementById('previewArea').style.display = 'none';
     });
 });
 
@@ -141,6 +210,11 @@ document.getElementById('btnWebcam').addEventListener('click', function(){
         showMsg('Por favor ingresa la URL de la webcam.');
         return;
     }
+    
+    // Mostrar indicador de carga
+    document.getElementById('previewArea').style.display = 'block';
+    document.getElementById('previewImg').src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2NjY2NjYiPkNhcmdhbmRvLi4uPC90ZXh0Pjwvc3ZnPg==';
+    
     axios.post('/webcam', {url: url}).then(res=>{
         if(res.data.preview){
             origImg = res.data.preview;
@@ -148,9 +222,14 @@ document.getElementById('btnWebcam').addEventListener('click', function(){
             document.getElementById('previewImg').src = 'data:image/jpeg;base64,'+origImg;
             document.getElementById('previewArea').style.display = 'block';
             document.getElementById('btnRectify').style.display = (docCnt.length===4) ? 'inline-block' : 'none';
+            
+            if(docCnt.length !== 4) {
+                showMsg('No se detectaron los bordes del documento. Puedes intentar con otra imagen o ajustar la iluminación.');
+            }
         }
     }).catch(err=>{
-        showMsg('No se pudo obtener la imagen de la webcam.');
+        showMsg('No se pudo obtener la imagen de la webcam. Verifica la URL y asegúrate que la app esté funcionando.');
+        document.getElementById('previewArea').style.display = 'none';
     });
 });
 
@@ -160,6 +239,11 @@ document.getElementById('btnRectify').addEventListener('click', function(){
         showMsg('No se detectó documento para aplanar.');
         return;
     }
+    
+    // Mostrar indicador de carga
+    document.getElementById('rectifiedArea').style.display = 'block';
+    document.getElementById('rectifiedImg').src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2NjY2NjYiPlByb2Nlc2FuZG8uLi48L3RleHQ+PC9zdmc+';
+    
     axios.post('/rectify', {
         image: origImg,
         doc_cnt: docCnt
@@ -172,6 +256,7 @@ document.getElementById('btnRectify').addEventListener('click', function(){
         applyFilters();
     }).catch(err=>{
         showMsg('No se pudo aplanar el documento.');
+        document.getElementById('rectifiedArea').style.display = 'none';
     });
 });
 
@@ -181,6 +266,10 @@ document.getElementById('btnRectify').addEventListener('click', function(){
 
 function applyFilters(){
     if(!rectifiedImg) return;
+    
+    // Mostrar indicador de carga
+    document.getElementById('rectifiedImg').style.opacity = '0.5';
+    
     axios.post('/filter', {
         image: rectifiedImg,
         filter: document.getElementById('filterSel').value,
@@ -191,11 +280,22 @@ function applyFilters(){
     }).then(res=>{
         processedImg = res.data.processed;
         document.getElementById('rectifiedImg').src = 'data:image/jpeg;base64,'+processedImg;
+        document.getElementById('rectifiedImg').style.opacity = '1';
+    }).catch(err => {
+        showMsg('Error al aplicar filtros');
+        document.getElementById('rectifiedImg').style.opacity = '1';
     });
 }
 
 document.getElementById('btnDownload').addEventListener('click', function(){
     if(!processedImg) return;
+    
+    // Cambiar el texto del botón para indicar que está procesando
+    const btnDownload = document.getElementById('btnDownload');
+    const originalText = btnDownload.innerHTML;
+    btnDownload.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Procesando...';
+    btnDownload.disabled = true;
+    
     axios.post('/save', {
         image: processedImg,
         output: document.getElementById('outputSel').value
@@ -208,6 +308,14 @@ document.getElementById('btnDownload').addEventListener('click', function(){
         a.click();
         window.URL.revokeObjectURL(url);
         a.remove();
+        
+        // Restaurar el botón
+        btnDownload.innerHTML = originalText;
+        btnDownload.disabled = false;
+    }).catch(err => {
+        showMsg('Error al descargar el documento');
+        btnDownload.innerHTML = originalText;
+        btnDownload.disabled = false;
     });
 });
 </script>
